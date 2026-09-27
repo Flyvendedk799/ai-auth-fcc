@@ -44625,9 +44625,19 @@ async function resolveProvider(model) {
 }
 
 // server/src/translate.ts
+function sanitizeSchema(obj) {
+  if (!obj || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeSchema);
+  const newObj = {};
+  for (const key in obj) {
+    if (key === "$schema" || key === "additionalProperties" || key === "default" || key === "const" || key === "exclusiveMinimum") continue;
+    newObj[key] = sanitizeSchema(obj[key]);
+  }
+  return newObj;
+}
 function openAiToGeminiTools(tools) {
   if (!tools || tools.length === 0) return void 0;
-  const functionDeclarations = tools.filter((t) => t.type === "function" && t.function).map((t) => t.function);
+  const functionDeclarations = tools.filter((t) => t.type === "function" && t.function).map((t) => sanitizeSchema(t.function));
   if (functionDeclarations.length === 0) return void 0;
   return [{ functionDeclarations }];
 }
