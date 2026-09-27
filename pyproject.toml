@@ -73,6 +73,9 @@ source = "vcs"
 [tool.hatch.build.targets.wheel]
 packages = ["src/free_claude_code"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/free_claude_code/ai_auth_proxy.cjs" = "free_claude_code/ai_auth_proxy.cjs"
+
 [tool.hatch.build.targets.wheel.shared-scripts]
 "scripts/update/fcc-update" = "fcc-update"
 "scripts/update/fcc-update.cmd" = "fcc-update.cmd"
@@ -167,4 +170,7 @@ allowed-unresolved-imports = [
     "pystray",
     "PIL",
 ]
+
+
+
 
