@@ -4,6 +4,7 @@ from free_claude_code.core.anthropic import ReasoningReplayMode
 from free_claude_code.providers.admission import ProviderAdmissionController
 from free_claude_code.providers.base import ProviderConfig
 from free_claude_code.providers.openai_chat import (
+    NO_REASONING,
     OpenAIChatProfile,
     OpenAIChatProvider,
     OpenAIChatRequestPolicy,
@@ -14,6 +15,7 @@ _PROFILE = OpenAIChatProfile(
         provider_name="AI_AUTH",
         reasoning_replay=ReasoningReplayMode.DISABLED,
     ),
+    NO_REASONING,
 )
 
 
