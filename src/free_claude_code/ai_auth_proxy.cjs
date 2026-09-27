@@ -44947,11 +44947,17 @@ async function createServer(options = {}) {
         "gemini-3-flash",
         "gemini-3-pro",
         "gemini-3.1-pro",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
+        "gemini-3.8-flash",
         "proxy-gemini-2.5-flash",
         "proxy-gemini-2.5-pro",
         "proxy-gemini-3-flash",
         "proxy-gemini-3-pro",
-        "proxy-gemini-3.1-pro"
+        "proxy-gemini-3.1-pro",
+        "proxy-gemini-3.6-flash",
+        "proxy-gemini-3.7-flash",
+        "proxy-gemini-3.8-flash"
       ], "gemini"),
       tryModels([
         "claude-haiku-4-5-20251001",
