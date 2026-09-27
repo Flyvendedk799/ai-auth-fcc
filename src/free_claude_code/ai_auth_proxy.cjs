@@ -44111,7 +44111,7 @@ function antigravityCliOptions(identity, baseUrl) {
 }
 function toCodeAssistRequest(model, contents, options = {}) {
   const normalizedContents = typeof contents === "string" ? [{ role: "user", parts: [{ text: contents }] }] : contents;
-  const wireModel = normalizeAntigravityModelId(model);
+  const wireModel = model;
   const bodyProject = options.projectId && options.projectId !== GOOGLE_ENTERPRISE_CLOUD_CODE_PROJECT ? options.projectId : options.projectId === GOOGLE_ENTERPRISE_CLOUD_CODE_PROJECT ? GOOGLE_ENTERPRISE_CLOUD_CODE_PROJECT : options.projectId;
   return {
     model: wireModel,
@@ -44521,6 +44521,18 @@ async function resolveProvider(model) {
   const wire = wireForModel(model);
   if (wire === "gemini") {
     try {
+      const identity = await antigravity.identity();
+      const opts = antigravityCliOptions(identity);
+      return {
+        wire: "gemini",
+        baseURL: opts.baseURL ?? CLOUD_CODE_DAILY_BASE_URL,
+        headers: opts.defaultHeaders ?? {},
+        isSubscription: true,
+        source: `gemini-cli (${identity.email ?? "local"})`
+      };
+    } catch {
+    }
+    try {
       const status = await antigravityAccounts.status("local-user");
       if (status.connected) {
         const token = await antigravityAccounts.token("local-user");
@@ -44533,18 +44545,6 @@ async function resolveProvider(model) {
           source: `gemini-ui (${status.email ?? "local"})`
         };
       }
-    } catch {
-    }
-    try {
-      const identity = await antigravity.identity();
-      const opts = antigravityCliOptions(identity);
-      return {
-        wire: "gemini",
-        baseURL: opts.baseURL ?? CLOUD_CODE_DAILY_BASE_URL,
-        headers: opts.defaultHeaders ?? {},
-        isSubscription: true,
-        source: `gemini-cli (${identity.email ?? "local"})`
-      };
     } catch {
     }
     const key2 = envKey("gemini");
@@ -44632,118 +44632,77 @@ function openAiToGeminiTools(tools) {
   return [{ functionDeclarations }];
 }
 function openAiToGeminiContents(messages) {
-  console.log("[AI-AUTH-PROXY] Last message from Cursor:", JSON.stringify(messages[messages.length - 1]));
   let systemInstruction;
   const contents = [];
-  let isContinuation = false;
-  const lastMsg = messages[messages.length - 1];
-  let lastMsgText = "";
-  if (lastMsg && typeof lastMsg.content === "string") {
-    lastMsgText = lastMsg.content;
-  } else if (lastMsg && Array.isArray(lastMsg.content)) {
-    lastMsgText = lastMsg.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
-  }
-  let innerText = "";
-  const match = lastMsgText.match(/<user_query>\s*(.*?)\s*<\/user_query>/is);
-  if (match) {
-    innerText = match[1].trim().toLowerCase();
-  } else {
-    innerText = lastMsgText.trim().toLowerCase();
-  }
-  if (innerText.length < 50 && (innerText.includes("continue") || innerText.includes("resume") || innerText.includes("go on"))) {
-    isContinuation = true;
-    console.log("[AI-AUTH-PROXY] CONTINUATION INTERCEPTED. Triggering auto-compaction.");
-  }
-  let partialText = "";
-  if (isContinuation) {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === "assistant") {
-        const m = messages[i];
-        if (typeof m.content === "string") {
-          partialText = m.content;
-        } else if (Array.isArray(m.content)) {
-          partialText = m.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
-        }
-        break;
-      }
-    }
-  }
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
+  for (const msg of messages) {
     let textContent = "";
     if (typeof msg.content === "string") {
       textContent = msg.content;
     } else if (Array.isArray(msg.content)) {
       textContent = msg.content.filter((part) => part.type === "text").map((part) => part.text).join("\n");
     }
-    if (isContinuation && msg.role === "assistant" && textContent === partialText) {
-      continue;
-    }
-    if (msg.role === "user" && i === messages.length - 1 && isContinuation) {
-      const explicitPrompt = "Your previous response was cut off due to the output length limit. Here is what you generated so far:\n\n`\n" + partialText + "\n`\n\nPlease seamlessly continue your response exactly where you left off. DO NOT REPEAT ANY OF THE ABOVE TEXT. Do not include any introductory text, apologies, or markdown code blocks if you were in the middle of one. Just output the exact next characters so I can concatenate them.";
-      if (match) {
-        textContent = textContent.replace(/<user_query>.*?<\/user_query>/is, "<user_query>\n" + explicitPrompt + "\n</user_query>");
-      } else {
-        textContent = explicitPrompt;
-      }
-    }
     if (msg.role === "system") {
-      systemInstruction = systemInstruction ? systemInstruction + "\n\n" + textContent : textContent;
+      systemInstruction = systemInstruction ? `${systemInstruction}
+
+${textContent}` : textContent;
       continue;
     }
-    if (msg.role === "tool") {
-      let parsed = {};
-      try {
-        parsed = JSON.parse(textContent || "{}");
-      } catch (e) {
-        parsed = { result: textContent };
+    const mappedRole = msg.role === "assistant" ? "model" : "user";
+    const lastContent = contents[contents.length - 1];
+    let newParts = [];
+    if (msg.role === "tool" || msg.role === "function") {
+      const isLegacy = !msg.tool_call_id || !msg.tool_call_id.includes("__sig__");
+      if (isLegacy) {
+        newParts.push({
+          text: `[Tool ${msg.name || "tool"} returned: ${textContent}]`
+        });
+      } else {
+        newParts.push({
+          functionResponse: {
+            name: msg.name || "tool",
+            response: { result: textContent }
+          }
+        });
       }
-      contents.push({ role: "user", parts: [{ functionResponse: { name: msg.name || "unknown", response: parsed } }] });
-      continue;
-    }
-    if (msg.role === "assistant" && msg.tool_calls && msg.tool_calls.length > 0) {
-      const parts = [];
-      if (textContent) parts.push({ text: textContent });
-      for (const tc of msg.tool_calls) {
-        if (tc.type === "function" && tc.function) {
-          let args = {};
-          try {
-            args = JSON.parse(tc.function.arguments);
-          } catch (e) {
-            args = { raw: tc.function.arguments };
-          }
-          const part = { functionCall: { name: tc.function.name, args } };
-          if (tc.id && tc.id.includes("__sig__")) {
-            part.thoughtSignature = tc.id.split("__sig__")[1];
-          }
-          parts.push(part);
+    } else if (msg.tool_calls && msg.tool_calls.length > 0) {
+      if (textContent) newParts.push({ text: textContent });
+      for (const call of msg.tool_calls) {
+        const idParts = call.id.split("__sig__");
+        const sig = idParts.length > 1 ? idParts[1] : void 0;
+        if (sig) {
+          newParts.push({
+            thoughtSignature: sig,
+            functionCall: {
+              name: call.function.name,
+              args: typeof call.function.arguments === "string" ? JSON.parse(call.function.arguments) : call.function.arguments
+            }
+          });
+        } else {
+          newParts.push({
+            text: `[Model invoked tool: ${call.function.name} with args: ${call.function.arguments}]`
+          });
         }
       }
-      contents.push({ role: "model", parts });
-      continue;
-    }
-    contents.push({ role: msg.role === "assistant" ? "model" : "user", parts: [{ text: textContent }] });
-  }
-  const collapsedContents = [];
-  for (const c of contents) {
-    if (collapsedContents.length > 0 && collapsedContents[collapsedContents.length - 1].role === c.role) {
-      const prevParts = collapsedContents[collapsedContents.length - 1].parts;
-      if (prevParts.length === 1 && prevParts[0].text && c.parts.length === 1 && c.parts[0].text) {
-        prevParts[0].text += "\n\n" + c.parts[0].text;
-      } else {
-        prevParts.push(...c.parts);
-      }
     } else {
-      collapsedContents.push(c);
+      if (textContent) newParts.push({ text: textContent });
+    }
+    if (newParts.length === 0) {
+      newParts.push({ text: "OK" });
+    }
+    if (lastContent && lastContent.role === mappedRole) {
+      if (!lastContent.parts) lastContent.parts = [];
+      lastContent.parts.push(...newParts);
+    } else {
+      contents.push({
+        role: mappedRole,
+        parts: newParts
+      });
     }
   }
-  if (collapsedContents.length > 0 && collapsedContents[collapsedContents.length - 1].role === "model") {
-    collapsedContents.push({ role: "user", parts: [{ text: "(Empty prompt to satisfy alternating roles)" }] });
+  if (contents.length > 0 && contents[0]?.role === "model") {
+    contents.unshift({ role: "user", parts: [{ text: "(Empty prompt to satisfy alternating roles)" }] });
   }
-  console.log("[AI-AUTH-PROXY] Tail payload to Gemini:", JSON.stringify(collapsedContents.slice(-2), null, 2));
-  const res = { contents: collapsedContents };
-  if (systemInstruction) res.systemInstruction = systemInstruction;
-  return res;
+  return { contents, systemInstruction };
 }
 function buildGeminiSubscriptionRequest(model, messages, projectId, tools) {
   const { contents, systemInstruction } = openAiToGeminiContents(messages);
@@ -44810,12 +44769,12 @@ function geminiResponseToOpenAi(body, model, requestId) {
     } : void 0
   };
 }
-function geminiUrl(provider, model) {
+function geminiUrl(provider, model, stream = false) {
   const base = provider.baseURL.replace(/\/$/, "");
   if (provider.isSubscription) {
-    return `${base}:generateContent`;
+    return `${base}:${stream ? "streamGenerateContent?alt=sse" : "generateContent"}`;
   }
-  return `${base}/models/${model}:generateContent`;
+  return `${base}/models/${model}:${stream ? "streamGenerateContent?alt=sse" : "generateContent"}`;
 }
 function buildAnthropicRequest(model, messages, maxTokens, isSubscription2) {
   let systemText = "";
@@ -44882,11 +44841,7 @@ function generateRequestId() {
 // server/src/server.ts
 var import_node_path6 = require("node:path");
 async function createServer(options = {}) {
-  const app = (0, import_fastify.default)({
-    logger: false,
-    bodyLimit: 52428800
-    // 50MB limit to handle massive context payloads (like 225k tokens)
-  });
+  const app = (0, import_fastify.default)({ logger: false });
   app.options("/*", async (request, reply) => {
     reply.header("Access-Control-Allow-Origin", "*");
     reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
