@@ -44810,12 +44810,12 @@ function geminiResponseToOpenAi(body, model, requestId) {
     } : void 0
   };
 }
-function geminiUrl(provider, model) {
+function geminiUrl(provider, model, stream = false) {
   const base = provider.baseURL.replace(/\/$/, "");
   if (provider.isSubscription) {
-    return `${base}:generateContent`;
+    return `${base}:${stream ? "streamGenerateContent?alt=sse" : "generateContent"}`;
   }
-  return `${base}/models/${model}:generateContent`;
+  return `${base}/models/${model}:${stream ? "streamGenerateContent?alt=sse" : "generateContent"}`;
 }
 function buildAnthropicRequest(model, messages, maxTokens, isSubscription2) {
   let systemText = "";
