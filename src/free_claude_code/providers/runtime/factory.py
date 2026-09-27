@@ -107,6 +107,19 @@ def _load_deepseek() -> ProviderFactory:
     return construct
 
 
+def _load_ai_auth() -> ProviderFactory:
+    from free_claude_code.providers.ai_auth import AiAuthProvider
+
+    def construct(
+        config: ProviderConfig,
+        settings: Settings,
+        admission: ProviderAdmissionController,
+    ) -> BaseProvider:
+        return AiAuthProvider(config, admission=admission)
+
+    return construct
+
+
 def _load_lmstudio() -> ProviderFactory:
     from free_claude_code.providers.lmstudio import LMStudioProvider
 
@@ -214,6 +227,7 @@ _SPECIAL_PROVIDER_FACTORIES: dict[str, Callable[[], ProviderFactory]] = {
     "mistral": _load_mistral,
     "kilo": _load_kilo,
     "deepseek": _load_deepseek,
+    "ai_auth": _load_ai_auth,
     "lmstudio": _load_lmstudio,
     "cloudflare": _load_cloudflare,
     "gemini": _load_gemini,
@@ -295,3 +309,4 @@ def prepare_provider(
         return create_openai_chat_provider(provider_id, config, admission)
 
     return construct
+

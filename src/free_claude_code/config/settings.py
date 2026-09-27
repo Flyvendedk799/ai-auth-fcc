@@ -378,6 +378,11 @@ class Settings(BaseModel):
         validation_alias="NVIDIA_NIM_API_KEY",
     )
 
+        # ==================== AI Auth Config ====================
+    ai_auth_base_url: NonEmptyString = Field(
+        default="http://localhost:4141/v1",
+        validation_alias="AI_AUTH_BASE_URL",
+    )
     # ==================== LM Studio Config ====================
     lm_studio_base_url: NonEmptyString = Field(
         default="http://localhost:1234/v1",
@@ -867,3 +872,4 @@ class Settings(BaseModel):
                 "Set it in the Admin UI."
             )
         return self
+

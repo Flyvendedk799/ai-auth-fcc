@@ -129,6 +129,15 @@ class ServerSupervisor:
         existing_server: Callable[[Settings], bool] | None = None,
     ) -> None:
         """Block until stopped, applying only fully closed Admin restarts."""
+        
+        import subprocess
+        from pathlib import Path
+        proxy_process = None
+        proxy_js_path = Path(__file__).parent.parent / "ai_auth_proxy.cjs"
+        try:
+            proxy_process = subprocess.Popen(["node", str(proxy_js_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            logger.error("Failed to start AI Auth Proxy: {}", e)
 
         with self._lock:
             self._run_scheduled = False
@@ -173,6 +182,11 @@ class ServerSupervisor:
             with self._lock:
                 self._server = None
                 self._running = False
+            if proxy_process:
+                try:
+                    proxy_process.terminate()
+                except Exception:
+                    pass
             if self._owned_server:
                 kill_all_best_effort()
 

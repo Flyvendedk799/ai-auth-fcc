@@ -724,6 +724,16 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
         default_base_url=OLLAMA_CLOUD_DEFAULT_BASE,
         proxy_attr="ollama_cloud_proxy",
     ),
+        "ai_auth": ProviderDescriptor(
+        provider_id="ai_auth",
+        display_name="AI Auth Proxy",
+        website_url="https://github.com/Flyvendedk799/ai-auth",
+        logo_filename="gemini-color.svg",
+        static_credential="ai-auth",
+        default_base_url="http://127.0.0.1:4141/v1",
+        base_url_attr="ai_auth_base_url",
+        local=True,
+    ),
     "lmstudio": ProviderDescriptor(
         provider_id="lmstudio",
         display_name="LM Studio",
@@ -770,3 +780,4 @@ SUPPORTED_PROVIDER_IDS: tuple[str, ...] = tuple(PROVIDER_CATALOG.keys())
 
 if len(set(SUPPORTED_PROVIDER_IDS)) != len(SUPPORTED_PROVIDER_IDS):
     raise AssertionError("Duplicate provider ids in PROVIDER_CATALOG key order")
+
