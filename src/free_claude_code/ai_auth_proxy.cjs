@@ -44111,7 +44111,7 @@ function antigravityCliOptions(identity, baseUrl) {
 }
 function toCodeAssistRequest(model, contents, options = {}) {
   const normalizedContents = typeof contents === "string" ? [{ role: "user", parts: [{ text: contents }] }] : contents;
-  const wireModel = normalizeAntigravityModelId(model);
+  const wireModel = model;
   const bodyProject = options.projectId && options.projectId !== GOOGLE_ENTERPRISE_CLOUD_CODE_PROJECT ? options.projectId : options.projectId === GOOGLE_ENTERPRISE_CLOUD_CODE_PROJECT ? GOOGLE_ENTERPRISE_CLOUD_CODE_PROJECT : options.projectId;
   return {
     model: wireModel,
