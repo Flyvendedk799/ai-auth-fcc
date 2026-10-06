@@ -44630,7 +44630,7 @@ function sanitizeSchema(obj) {
   if (Array.isArray(obj)) return obj.map(sanitizeSchema);
   const newObj = {};
   for (const key in obj) {
-    if (key === "$schema" || key === "additionalProperties" || key === "default" || key === "const" || key === "exclusiveMinimum") continue;
+    if (key === "$schema" || key === "additionalProperties" || key === "default" || key === "const" || key === "exclusiveMinimum" || key === "propertyNames" || key === "anyOf" || key === "allOf" || key === "oneOf" || key === "not" || key === "patternProperties") continue;
     newObj[key] = sanitizeSchema(obj[key]);
   }
   return newObj;
@@ -44714,19 +44714,24 @@ ${textContent}` : textContent;
   }
   return { contents, systemInstruction };
 }
-function buildGeminiSubscriptionRequest(model, messages, projectId, tools) {
+function buildGeminiSubscriptionRequest(model, messages, projectId, tools, maxTokens, temperature, topP) {
   const { contents, systemInstruction } = openAiToGeminiContents(messages);
   const req = toCodeAssistRequest(model, contents, {
     projectId: projectId ?? GOOGLE_ENTERPRISE_CLOUD_CODE_PROJECT,
     systemInstruction
   });
+  req.request.generationConfig = {
+    ...maxTokens !== void 0 ? { maxOutputTokens: maxTokens } : {},
+    ...temperature !== void 0 ? { temperature } : {},
+    ...topP !== void 0 ? { topP } : {}
+  };
   const geminiTools = openAiToGeminiTools(tools);
   if (geminiTools) {
     req.request.tools = geminiTools;
   }
   return req;
 }
-function buildGeminiKeyRequest(model, messages, tools) {
+function buildGeminiKeyRequest(model, messages, tools, maxTokens, temperature, topP) {
   const { contents, systemInstruction } = openAiToGeminiContents(messages);
   const geminiTools = openAiToGeminiTools(tools);
   return {
@@ -44971,7 +44976,7 @@ async function createServer(options = {}) {
     if (provider.wire === "gemini") {
       upstreamUrl = geminiUrl(provider, actualModelName);
       upstreamBody = JSON.stringify(
-        provider.isSubscription ? buildGeminiSubscriptionRequest(actualModelName, body.messages, void 0, body.tools) : buildGeminiKeyRequest(actualModelName, body.messages, body.tools)
+        provider.isSubscription ? buildGeminiSubscriptionRequest(actualModelName, body.messages, void 0, body.tools, body.max_tokens, body.temperature, body.top_p) : buildGeminiKeyRequest(actualModelName, body.messages, body.tools, body.max_tokens, body.temperature, body.top_p)
       );
     } else if (provider.wire === "anthropic") {
       upstreamUrl = anthropicUrl(provider);
